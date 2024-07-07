@@ -16,7 +16,7 @@ Detailed guidelines and rules for the assignments are available in the PDF ***Ho
 
 ### **Assigments Overview**
 
-For both assignments, we utilized the same dataset featuring historical records from the Olympic Games](https://www.kaggle.com/datasets/piterfm/olympic-games-medals-19862018), spanning all events from Athens 1896 to Beijing 2022. This comprehensive dataset includes details on over 21,000 medals, 162,000 results, 74,000 athletes, 20,000 biographies, and 53 host cities of the Summer and Winter Olympic Games, sourced from [Kaggle](https://www.kaggle.com/).
+For both assignments, we utilized the same dataset featuring historical records from the [Olympic Games](https://www.kaggle.com/datasets/piterfm/olympic-games-medals-19862018), spanning all events from Athens 1896 to Beijing 2022. This comprehensive dataset includes details on over 21,000 medals, 162,000 results, 74,000 athletes, 20,000 biographies, and 53 host cities of the Summer and Winter Olympic Games, sourced from [Kaggle](https://www.kaggle.com/).
 
 For the first assignment, which required the use of a relational database, we chose `MySQL`. For the second assignment, which involved a *non-relational database*, we opted for `Neo4j`, a *graph-based database*.
 
