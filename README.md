@@ -6,6 +6,7 @@ This repository hosts the two assignments for the Data Management exam, held by 
 ### **Exam Structure**
 
 The exam in Data Management consisted of two homeworks in which we were asked to build a database, first bu using a ***relational database*** and the by using a ***non-relational*** one. For the *relational database* we choose `MySQL`, for the *non-relational* one we opted for `Neo4j`, a graph-database.
+The guidelines and rules for the assignments can be found in the PDF ***Homework assignments and rules (DM)*** uploaded in the repository.
 
 -------------------------------------------------------------------------------------------------------------------------------------
 
