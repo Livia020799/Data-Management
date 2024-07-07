@@ -1,0 +1,434 @@
+GROUP 7 HOMEWORK 1 & 2 - Oddi Livia and Cesario Thoft Laura
+
+The dataset is a historical record of the Olympic Games, covering all events from Athens 1896 to Beijing 2022. It contains detailed information on over 21,000 medals, 
+162,000 results, 74,000 athletes and 53 hosts of the Summer and Winter Olympic Games, organized into 4 CSV files.
+
+The data were pre-processed with Python on Google Colab (Preprocessing_Group_7_Oddi_Cesario attached file), and we also dropped some columns that weren't useful for our queries because 
+they had too many nulls, information we couldn't use, or were redundant information (such as "athlete_url", "bio", and "country_3_letter_code"). 
+Google Colab was also used to create indexes for the foreign keys.
+
+Initially, we created a database (olympics) with all the constraints and primary and foreign keys, manually created the table schemas and then populated the tables by 
+inserting the data contained in the csv files, as we had a lot of data and using Import Wizard cropped some data. But then, when we executed the queries on this database, 
+we noticed that they were really fast, order of 0.002 seconds.
+
+
+Given this situation, we started from scratch and created a new database in MySQL called olympics-base, which didn't have any constraints on the variables and no keys 
+(primary or foreign).
+
+############################################################
+#SQL code used to create the initial schema of our database#
+############################################################
+
+USE  `olympics-base`;
+
+CREATE TABLE `athletes` (
+	  `athlete_full_name` text,
+	  `games_participations` int,
+	  `first_game` text,
+	  `athlete_year_birth` int 
+) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `medals` (
+	`discipline_title` text, 
+    `slug_game` text,
+	`event_title` text, 
+	`event_gender` text, 
+	`medal_type` text, 
+	`participant_type` text, 
+	`athlete_full_name` text,
+     `country_name` text
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosts` (
+	`game_slug` text, 
+	`game_end_date` datetime, 
+	`game_start_date` datetime, 
+	`game_location` text, 
+	`game_name` text, 
+	`game_season` text, 
+	`game_year` int 
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+     
+
+CREATE TABLE `results` (
+	`discipline_title` text, 
+	`event_title` text, 
+	`slug_game` text, 
+    `participant_type` text, 
+	`medal_type` text, 
+	`athletes` text, 
+	`rank_position` tinytext, 
+    `country_name` text, 
+    `athlete_full_name` text  
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+     
+
+We then re-ran the first 10 queries:
+###########
+# QUERIES #
+###########
+
+(1) All athletes who have taken part in more than 3 individual Olympic Games ("Athletes" in the result table) with the respective country 
+Table without constraints - NOT OPTIMIZED
+
+SELECT DISTINCT r.athlete_full_name, a.games_participations, r.country_name
+FROM `olympics-base`.results r
+JOIN `olympics-base`.athletes a ON a.athlete_full_name=r.athlete_full_name
+WHERE r.participant_type = 'Athlete'
+AND a.games_participations > 3
+ORDER BY a.games_participations DESC;
+
+AVG execution Time : 0.415 sec
+OUTPUT :
+Ian Miller holds the record for most appearances in history, and we have the same atheltes with different nationalities because they probably
+changed nationality to have an higher chance to get elected or maybe for political reasons.
+
+
+(2) How many people won a gold or silver medal in the Summer Olympic Games that were held between 1896 and 1956 
+Table without constraints - NOT OPTIMIZED
+
+SELECT h.game_location, h.game_year, COUNT(*) AS athlete_count
+FROM `olympics-base`.medals m
+JOIN `olympics-base`.hosts h ON m.slug_game = h.game_slug
+WHERE h.game_year BETWEEN 1896 AND 1956
+AND (m.medal_type = 'GOLD' OR m.medal_type = 'SILVER')
+AND h.game_season = 'Summer'
+GROUP BY h.game_year, h.game_location
+ORDER BY game_year ASC;
+
+AVG execution Time : 0.040 sec
+OUTPUT:
+The first Olympic was in 1896. During the II World War (1939-1945) the olimpics were cancelled in 1940 and 1944 and also during the I World War (1914-1918) 
+the olympics were cancelled in 1916, that's why we don't see any olympic game held between the 1912-1920 and 1936-1948.
+
+
+(3) Number of participants in Japanese summer women's matches with the event and discipline title  -> Linked to the II WW query we did before
+Table without constraints - NOT OPTIMIZED
+
+SELECT h.game_year, h.game_location, COUNT(*) AS num_participants
+FROM `olympics-base`.results r
+JOIN `olympics-base`.hosts h ON r.slug_game = h.game_slug
+WHERE (r.event_title LIKE '%women%' OR r.event_title LIKE '%Women%')
+AND h.game_season='Summer' 
+AND r.country_name = 'Japan'
+GROUP BY h.game_year, h.game_location
+ORDER BY game_year ASC;
+
+AVG execution Time : 0.616 sec
+
+OUTPUT:
+Because of the II World War there was a decrease in partecipation between 1936 and 1952
+We can see an increase after the 1945 probably because,following the end of II World War, women in Japan gained significant rights. A section of the new 
+constitution drafted in 1946 was dedicated to guaranteeing gender equality, including the right to vote.
+
+
+(4) For every athlete, the number of individual Olympic Games, during the pandemic (2019-2022), in which each athlete participated but did not win,
+along with the worst rank they achieved
+Table without constraints - NOT OPTIMIZED
+
+SELECT r.athlete_full_name, r.country_name, MAX(r.rank_position) AS worst_rank, COUNT(CASE WHEN r.medal_type IS NULL THEN 1 ELSE 0 END) AS games_lost, r.discipline_title
+FROM `olympics-base`.results r
+JOIN `olympics-base`.hosts h ON h.game_slug = r.slug_game
+WHERE YEAR(h.game_start_date) >= 2019
+AND YEAR(h.game_end_date) <= 2022
+AND r.rank_position != 'WDR' #WDR = Win by Withdrawal
+AND r.participant_type= 'Athlete'
+GROUP BY r.athlete_full_name, r.country_name, r.discipline_title
+ORDER BY games_lost DESC;
+
+AVG execution Time : 0.487 sec
+	
+COMMENTS:
+We considered DNF (Did Not Finish), DNS (Did Not Start), DNC (Did Not Come) worse than a bad rank
+
+
+
+(5) All participants, with less than 40 years old, of individual Olympic games who have won more medals than the oldest champion (>= 40) 
+Table without constraints - NOT OPTIMIZED
+
+SELECT a.athlete_full_name, a.athlete_year_birth, COUNT(m.medal_type) as medals, m.discipline_title, m.country_name
+FROM `olympics-base`.athletes a
+JOIN `olympics-base`.medals m ON a.athlete_full_name = m.athlete_full_name
+WHERE a.athlete_year_birth > (YEAR(NOW()) - 40) #1984
+AND m.participant_type = 'Athlete'
+GROUP BY a.athlete_full_name, a.athlete_year_birth, m.discipline_title, m.country_name
+HAVING medals > (
+SELECT MAX(old_medals)
+FROM (SELECT COUNT(m2.medal_type) AS old_medals
+	  FROM `olympics-base`.athletes a2
+      JOIN `olympics-base`.medals m2 ON a2.athlete_full_name = m2.athlete_full_name
+	  WHERE a2.athlete_year_birth < (YEAR(NOW()) - 40) #1984
+      AND m2.participant_type = 'Athlete'
+	  GROUP BY a2.athlete_full_name
+	  ) AS max_medals
+)
+ORDER BY medals DESC; 
+
+AVG execution Time : 0.481 sec
+OUTPUT :
+'Michael PHELPS', '1985', '16', 'Swimming', 'United States of America' (Famous American swimmer)
+
+
+(6) For each year, the number of gold medals won by athletes taking part in the Winter Olympic Games, with the average age of the athletes per Games year 
+Table without constraints - NOT OPTIMIZED
+
+SELECT h.game_year, COUNT(*) AS gold_medals, AVG(h.game_year - a.athlete_year_birth) AS average_age
+FROM `olympics-base`.hosts h
+JOIN `olympics-base`.medals m ON m.slug_game = h.game_slug
+JOIN `olympics-base`.athletes a ON m.athlete_full_name = a.athlete_full_name
+WHERE m.medal_type = 'Gold'
+AND h.game_season = 'Winter'
+GROUP BY h.game_year
+ORDER BY h.game_year ASC;
+
+AVG execution Time : 0.250 sec
+OUTPUT:
+Looking at the gold medal's increasing number we could say that there is an increase in participation, while the age's average is more or less stable throughout the years.
+
+
+
+(7) Select the distinct full names and the number of games participated in by athletes who were born after 1994 and have not won more than one medal.
+It orders the results by the number of games participated in, in descending order.
+Table without constraints - NOT OPTIMIZED
+
+SELECT DISTINCT a.athlete_full_name, a.games_participations 
+FROM `olympics-base`.athletes a
+WHERE a.athlete_year_birth > 1994
+AND NOT EXISTS (
+    SELECT *
+    FROM `olympics-base`.medals m
+    WHERE a.athlete_full_name = m.athlete_full_name
+    AND (SELECT COUNT(*) 
+         FROM `olympics-base`.medals m2 
+         WHERE m2.athlete_full_name = m.athlete_full_name) > 1 
+    #counts the number of medals greater than 1 for each athlete
+) 
+ORDER BY a.games_participations  DESC;
+
+AVG execution Time : 5.5 minutes
+
+
+(8) Medal type and host of the games won by Italian athletes, age < 25, at the Olympic Summer Games in Tokyo.
+Table without constraints - NOT OPTIMIZED 
+
+SELECT DISTINCT m.athlete_full_name, m.slug_game, m.discipline_title, m.medal_type
+FROM `olympics-base`.medals m
+WHERE m.slug_game LIKE "tokyo-%" 
+AND m.country_name = "Italy" 
+AND YEAR(NOW()) - 
+	(SELECT a.athlete_year_birth 
+	FROM `olympics-base`.athletes a 
+	WHERE a.athlete_full_name = m.athlete_full_name) < 25
+AND 
+	(SELECT h.game_season 
+	FROM `olympics-base`.hosts h 
+	WHERE h.game_slug = m.slug_game) = "Summer";
+	
+AVG execution Time : 5.200 sec
+
+
+(9) Find the athlete, among the individual olimpic games, with the highest number of "DNF", "DNS", "DNC" rank positions (with at least one DNF and one DNS) in the Olimpic Game
+that has the highest number of such rank positions 
+Table without constraints - NOT OPTIMIZED
+
+SELECT r.athlete_full_name, r.country_name, SUM(CASE WHEN r.rank_position IN ('DNF', 'DNS', 'DNC') THEN 1 ELSE 0 END) AS dnf_dns_dnc_count, r.slug_game
+FROM `olympics-base`.results r
+WHERE r.slug_game = (SELECT r2.slug_game
+					 FROM `olympics-base`.results r2
+                     GROUP BY r2.slug_game
+					 ORDER BY SUM(CASE WHEN r2.rank_position IN ('DNF', 'DNS', 'DNC') THEN 1 ELSE 0 END) DESC
+					 LIMIT 1
+					)
+AND r.participant_type = 'Athlete'
+GROUP BY r.athlete_full_name, r.slug_game, r.country_name
+HAVING SUM(CASE WHEN r.rank_position IN ('DNF', 'DNS') THEN 1 ELSE 0 END) > 2
+ORDER BY dnf_dns_dnc_count DESC
+LIMIT 1;
+
+AVG execution Time : 1.30 sec
+
+
+
+(10) Selects the athlete's full name, country name, game name, and game location of those who were born after 1980 and have won more than one gold medal in the Olympic Games 
+hosted by their own country, considering only the games held between 1980 and 2020.
+Table without constraints - NOT OPTIMIZED
+
+SELECT DISTINCT m.athlete_full_name, m.country_name, h.game_name, h.game_location
+FROM `olympics-base`.medals m
+JOIN `olympics-base`.hosts h ON m.slug_game = h.game_slug
+JOIN `olympics-base`.athletes a ON a.athlete_full_name = m.athlete_full_name
+WHERE m.medal_type = "GOLD"
+AND a.athlete_year_birth > 1980
+AND h.game_location = m.country_name
+AND (SELECT COUNT(*) 
+	 FROM `olympics-base`.medals m2 
+	 JOIN `olympics-base`.hosts h2 ON m2.slug_game = h2.game_slug
+	 WHERE m2.athlete_full_name = m.athlete_full_name 
+	 AND m2.medal_type = "GOLD" 
+	 AND h2.game_location = m.country_name
+     AND h2.game_year BETWEEN 1980 AND 2020
+	) > 1;
+
+AVG execution Time : 6.037 sec
+
+
+When we executed the queries and took 5 samples of execution time, we saw that about 4 of the 10 queries were slower than the others, with the slowest taking about 5/6 minutes to execute. 
+These were the queries we chose to optimise [(7), (8), (9), (10)].
+To optimise the queries we created and used a database with constraints and keys (olympics) by exploiting the foreing keys, transforming subqueries into explicit joins and other optimisation 
+methods. Since we used olympics database, all of our queries are optimized by modifying the logical structure of the database, and then by also adding other optimization methods.
+
+####################################################
+#SQL code used to create the schema of our database#
+####################################################
+
+USE  `olympics`;
+
+CREATE TABLE `athletes` (
+		`ID_athlete` int NOT NULL PRIMARY KEY,
+		`athlete_full_name` text NOT NULL,
+		`games_participations` int NOT NULL,
+		`first_game` text NOT NULL,
+		`athlete_year_birth` int DEFAULT NULL
+) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosts` (
+        `ID_hosts` int NOT NULL PRIMARY KEY,
+	`game_slug` text NOT NULL, 
+	`game_end_date` datetime NOT NULL, 
+	`game_start_date` datetime NOT NULL, 
+	`game_location` text NOT NULL, 
+	`game_name` text NOT NULL, 
+	`game_season` text NOT NULL, 
+	`game_year` int NOT NULL
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+   
+CREATE TABLE `medals` (
+	`ID_medals` int NOT NULL PRIMARY KEY,
+	`discipline_title` text NOT NULL, 
+	`slug_game` text NOT NULL ,
+	`event_title` text , 
+	`event_gender` text, 
+	`medal_type` text NOT NULL, 
+	`participant_type` text, 
+	`athlete_full_name` text NOT NULL,
+     `country_name` text,
+     `ID_hosts` int NOT NULL,
+     `ID_athletes` int NOT NULL
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `results` (
+	`ID_results` int NOT NULL PRIMARY KEY,
+	`discipline_title` text NOT NULL, 
+	`event_title` text, 
+	`slug_game` text NOT NULL, 
+        `participant_type` text NOT NULL, 
+	`medal_type` text, 
+	`athletes` text, 
+	`rank_position` tinytext NOT NULL, 
+        `country_name` text, 
+        `athlete_full_name` text,
+        `ID_hosts` int NOT NULL
+     ) ENGINE=InnoDB AUTO_INCREMENT=7932 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+   
+[The foreign key were created using directly MySQL interface]
+
+#####################
+# QUERIES OPTIMIZED #
+#####################
+
+
+(7) Select the distinct full names and the number of games participated in by athletes who were born after 1994 and have not won more than one medal.
+It orders the results by the number of games participated in, in descending order.
+Table with constraints - OPTIMIZATION WITH VIEW (MySQL doesn't allow materialized views)
+
+USE olympics;
+
+CREATE VIEW athletes_medal_counts AS
+SELECT a.athlete_full_name, a.games_participations, a.athlete_year_birth, COUNT(m.medal_type) AS medal_count
+FROM olympics.athletes a
+LEFT JOIN olympics.medals m ON a.ID_athlete = m.ID_athletes
+GROUP BY a.athlete_full_name, a.games_participations, a.athlete_year_birth ;
+
+SELECT athlete_full_name, games_participations, medal_count
+FROM athletes_medal_counts
+WHERE medal_count > 1
+AND athlete_year_birth > 1994
+ORDER BY medal_count DESC;
+
+AVG execution Time : 5.5 minutes -> 0.119 sec
+OUTPUT:
+You can see that some athletes have more medals than the number they've partecipated in because you can  partecipate in more than one discipline in one game.
+
+
+(8) Medal type and host of the games won by Italian athletes, age < 25, at the Olympic Summer Games in Tokyo.
+Table with constraints - OPTIMIZATION WITH EXPLICIT JOIN AND FOREIGN/PRIMARY KEY - rewriting the SQL query (without changing its meaning)
+
+SELECT DISTINCT m.athlete_full_name, m.slug_game, m.discipline_title, m.medal_type
+FROM olympics.medals m
+JOIN olympics.athletes a ON a.ID_athlete = m.ID_athletes
+JOIN olympics.hosts h ON h.ID_hosts = m.ID_hosts
+WHERE m.slug_game LIKE "tokyo-%" 
+AND m.country_name = "Italy" 
+AND YEAR(NOW()) - a.athlete_year_birth < 25
+AND h.game_season = "Summer";
+	
+AVG execution Time : 5.200 sec -> 0.038 sec
+OUTPUT:
+'Vito DELL\'AQUILA', 'tokyo-2020', 'Taekwondo', 'GOLD'
+
+
+(9) Find the athlete, among the individual olimpic games, with the highest number of "DNF", "DNS", "DNC" rank positions (with at least one DNF and one DNS) in the Olimpic Game
+that has the highest number of such rank positions 
+Table with constraints - OPTIMIZATION WITH THE CREATION OF ANOTHER TABLE
+
+USE olympics;
+
+CREATE TABLE table_results AS
+SELECT r.athlete_full_name, r.country_name, SUM(CASE WHEN r.rank_position IN ('DNF', 'DNS', 'DNC') THEN 1 ELSE 0 END) AS dnf_dns_dnc_count, SUM(CASE WHEN r.rank_position IN ('DNF', 'DNS') THEN 1 ELSE 0 END) AS dnf_dns_count, r.slug_game
+FROM olympics.results r
+WHERE r.participant_type = 'Athlete'
+GROUP BY r.athlete_full_name, r.slug_game, r.country_name;
+
+SELECT r.athlete_full_name, r.country_name, r.dnf_dns_dnc_count, r.slug_game
+FROM table_results r
+WHERE r.slug_game = (
+    SELECT slug_game
+    FROM table_results
+    GROUP BY slug_game
+    ORDER BY SUM(dnf_dns_dnc_count) DESC
+    LIMIT 1
+)
+AND r.dnf_dns_count > 2
+ORDER BY r.dnf_dns_dnc_count DESC
+LIMIT 1;
+
+AVG execution Time : 1.30 sec -> 0.471 sec
+OUTPUT:
+'Mario MASSA', 'Italy', '6', 'stockholm-1912'
+
+
+(10) Selects the athlete's full name, country name, game name, and game location of those who were born after 1980 and have won more than one gold medal in the Olympic Games 
+hosted by their own country, considering only the games held between 1980 and 2020.
+Table with constraints - OPTIMIZATION WITH INDEXING
+
+CREATE INDEX idx_medals_subquery ON olympics.medals (slug_game(100), medal_type(10));
+CREATE INDEX idx_hosts_game_location_game_year ON olympics.hosts (game_location(100), game_year);
+CREATE INDEX idx_hosts_subquery ON olympics.hosts (game_year);
+	
+SELECT DISTINCT m.athlete_full_name, m.country_name, h.game_name, h.game_location
+FROM olympics.medals m
+JOIN olympics.hosts h ON m.slug_game = h.game_slug
+JOIN olympics.athletes a ON a.athlete_full_name = m.athlete_full_name
+WHERE m.medal_type = "GOLD"
+AND a.athlete_year_birth > 1980
+AND h.game_location = m.country_name
+AND (SELECT COUNT(*) 
+	 FROM olympics.medals m2 
+	 JOIN olympics.hosts h2 ON m2.slug_game = h2.game_slug
+	 WHERE m2.athlete_full_name = m.athlete_full_name 
+	 AND m2.medal_type = "GOLD" 
+	 AND h2.game_location = m.country_name
+	 AND h2.game_year BETWEEN 1980 AND 2020
+	) > 1;
+
+AVG execution Time : 6.037 sec	 -> 0.043 sec
