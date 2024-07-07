@@ -1,7 +1,7 @@
 # Data-Management
 This repository hosts the two assignments for the Data Management exam, held by Professors Domenico Lembo and Riccardo Rosati, as part of the Master’s degree in Data Science at Sapienza University of Rome.
 
-I worked on the assignments together with Laura Thoft Cesario (@laurathoft)
+I worked on the assignments together with Laura Thoft Cesario ([@laurathoft](https://github.com/laurathoft))
 
 -------------------------------------------------------------------------------------------------------------------------------------
 
